@@ -1,0 +1,5 @@
+# COOL SERVIce 😎😎😎😎😎😎
+
+## You need redis pls if you wanna run locally
+docker run --name some-redis -p 6379:6379 -d redis && mvn spring-boot:run
+
