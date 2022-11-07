@@ -3,7 +3,7 @@
 ## What
 Example Spring application containing an example of a Testcontainers IT test (PetControllerIT).
 
-Stores names and ages of pets.
+Stores the names and ages of pets.
 
 ## How to run application standalone
 > Requires a local redis server, hence the docker command
