@@ -24,40 +24,43 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+// JUnit Jupiter extension enabling class scanning for @Container annotations
 @Testcontainers
-// Junit Jupiter extension enabling class scanning for @Container annotations to call start/stop blah blah on
-@SpringBootTest // Spin up my full application context babyyy
+// Spins up full Spring application context (with a mock servlet)
+@SpringBootTest
+// Provides us with a client for hitting the mock Spring servlet
 @AutoConfigureMockMvc
-// Lets us hit the controller with a test client so we can pretend its a real running service
+// Allows us to inject application properties before Spring spins up the application context
 @ContextConfiguration(initializers = RedisPropertyInitializer.class)
-// Injects redis properties prior to spinning up
 public class PetControllerIT {
 
+  // This used in conjunction with @Testcontainers above tells JUnit to start and stop the container during the test lifecycle
+  // Containers with the "static" keyword will use @BeforeAll to start and @AfterAll to stop
+  // Otherwise they will use @BeforeEach to start and @AfterEach to stop
   @Container
-  // Used by @Testcontainers to inform that this is a container that needs to be spun up and spun down (e.g. with .start())
-  // static containers will be shared between test methods, non-static will be remade between test methods
+  // Redis doesn't require any special interactions, so it doesn't have a typed container
   private static GenericContainer redis = new GenericContainer("redis:5.0.3-alpine")
-      .withExposedPorts(6379); // Here you put the port that you want to expose from within
-  // It will actually be exposed outside on a random free port
+      // Here you put the port that you want to expose internally
+      // It will actually be exposed externally on a random free port
+      .withExposedPorts(6379);
 
+  // This used in conjunction with @ContextConfiguration above allows us to inject application properties before Spring spins up the application context
   static class RedisPropertyInitializer implements
       ApplicationContextInitializer<ConfigurableApplicationContext> {
-    // This is a Spring-provided way for messing with properties before everything spins up
 
-    // Since we're calling it in an "initialize" block, everything we do here will trigger before spring starts spinning up
     @Override
     public void initialize(@NotNull ConfigurableApplicationContext applicationContext) {
+      // We pull the host and port values from our Redis Testcontainer and inject them into the application context
       TestPropertyValues.of(
               "redis.host=" + redis.getHost(),
               "redis.port=" + redis.getFirstMappedPort())
-          // SUPER IMPORTANT select the current context as the environment to inject properties into
           .applyTo(applicationContext.getEnvironment());
-
     }
   }
 
-  @Autowired // Can wire anything in from our Spring bean registry thanks to @SpringBootTest
-  private MockMvc mockMvc; // Provided by @AutoConfigureMockMvc
+  // Provided by @AutoConfigureMockMvc
+  @Autowired
+  private MockMvc mockMvc;
 
   @Test
   public void successfullySavesAndGetsPet() throws Exception {
@@ -81,9 +84,8 @@ public class PetControllerIT {
         Pet.class);
 
     assertThat(actualPet)
-        .usingRecursiveComparison() // checks the field values, rather than asserting both pointers point to the exact same object in memory (which they wont cos they've been serialised in and out of the service)
+        // This AssertJ method allows us to compare objects by looking at their property values, rather than checking if they are the same object
+        .usingRecursiveComparison()
         .isEqualTo(expectedPet);
   }
-
-
 }
