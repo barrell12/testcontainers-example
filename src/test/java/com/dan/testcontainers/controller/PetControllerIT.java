@@ -19,6 +19,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.Sql.ExecutionPhase;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.MySQLContainer;
@@ -36,6 +37,7 @@ public class PetControllerIT {
   @Container
   private static MySQLContainer<?> mySql = new MySQLContainer<>("mysql:8.0.31")
       .withDatabaseName("petDb")
+      .withInitScript("init.sql")
       .withExposedPorts(3306);
 
   static class MySqlPropertyInitializer implements
@@ -43,8 +45,6 @@ public class PetControllerIT {
 
     @Override
     public void initialize(@NotNull ConfigurableApplicationContext applicationContext) {
-      final String className = getClass().getName();
-      System.out.println(className);
       TestPropertyValues.of(
               "mysql.url=" + mySql.getJdbcUrl(),
               "mysql.username=" + mySql.getUsername(),
@@ -57,7 +57,28 @@ public class PetControllerIT {
   private MockMvc mockMvc;
 
   @Test
-  @Sql(statements = TRUNCATE_PET_TABLE)
+  @Sql(statements = TRUNCATE_PET_TABLE, executionPhase = ExecutionPhase.AFTER_TEST_METHOD)
+  public void successfullyGetsInitScriptPet() throws Exception {
+    final ObjectMapper objectMapper = new ObjectMapper();
+
+    final String id = "init_pet";
+    final Pet expectedPet = new Pet(id, "InitScriptPet", 10);
+
+    final MvcResult getPetResult = mockMvc.perform(get("/pet?id=" + id)
+            .accept(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andReturn();
+
+    final Pet actualPet = objectMapper.readValue(
+        getPetResult.getResponse().getContentAsString(),
+        Pet.class);
+
+    assertThat(actualPet)
+        .usingRecursiveComparison()
+        .isEqualTo(expectedPet);
+  }
+
+  @Test
   public void successfullySavesAndGetsPet() throws Exception {
     final ObjectMapper objectMapper = new ObjectMapper();
 
