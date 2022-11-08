@@ -5,7 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.dan.testcontainers.controller.PetControllerIT.RedisPropertyInitializer;
+import com.dan.testcontainers.controller.PetControllerIT.MySqlPropertyInitializer;
 import com.dan.testcontainers.domain.Pet;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jetbrains.annotations.NotNull;
@@ -18,51 +18,46 @@ import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-// JUnit Jupiter extension enabling class scanning for @Container annotations
 @Testcontainers
-// Spins up full Spring application context (with a mock servlet)
 @SpringBootTest
-// Provides us with a client for hitting the mock Spring servlet
 @AutoConfigureMockMvc
-// Allows us to inject application properties before Spring spins up the application context
-@ContextConfiguration(initializers = RedisPropertyInitializer.class)
+@ContextConfiguration(initializers = MySqlPropertyInitializer.class)
 public class PetControllerIT {
 
-  // This used in conjunction with @Testcontainers above tells JUnit to start and stop the container during the test lifecycle
-  // Containers with the "static" keyword will use @BeforeAll to start and @AfterAll to stop
-  // Otherwise they will use @BeforeEach to start and @AfterEach to stop
-  @Container
-  // Redis doesn't require any special interactions, so it doesn't have a typed container
-  private static GenericContainer redis = new GenericContainer("redis:5.0.3-alpine")
-      // Here you put the port that you want to expose internally
-      // It will actually be exposed externally on a random free port
-      .withExposedPorts(6379);
+  private static final String TRUNCATE_PET_TABLE = "TRUNCATE TABLE pet";
 
-  // This used in conjunction with @ContextConfiguration above allows us to inject application properties before Spring spins up the application context
-  static class RedisPropertyInitializer implements
+  @Container
+  private static MySQLContainer<?> mySql = new MySQLContainer<>("mysql:8.0.31")
+      .withDatabaseName("petDb")
+      .withExposedPorts(3306);
+
+  static class MySqlPropertyInitializer implements
       ApplicationContextInitializer<ConfigurableApplicationContext> {
 
     @Override
     public void initialize(@NotNull ConfigurableApplicationContext applicationContext) {
-      // We pull the host and port values from our Redis Testcontainer and inject them into the application context
+      final String className = getClass().getName();
+      System.out.println(className);
       TestPropertyValues.of(
-              "redis.host=" + redis.getHost(),
-              "redis.port=" + redis.getFirstMappedPort())
+              "mysql.url=" + mySql.getJdbcUrl(),
+              "mysql.username=" + mySql.getUsername(),
+              "mysql.password=" + mySql.getPassword())
           .applyTo(applicationContext.getEnvironment());
     }
   }
 
-  // Provided by @AutoConfigureMockMvc
   @Autowired
   private MockMvc mockMvc;
 
   @Test
+  @Sql(statements = TRUNCATE_PET_TABLE)
   public void successfullySavesAndGetsPet() throws Exception {
     final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -84,7 +79,6 @@ public class PetControllerIT {
         Pet.class);
 
     assertThat(actualPet)
-        // This AssertJ method allows us to compare objects by looking at their property values, rather than checking if they are the same object
         .usingRecursiveComparison()
         .isEqualTo(expectedPet);
   }

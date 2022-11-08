@@ -6,7 +6,7 @@ Example Spring application containing an example of a Testcontainers IT test (Pe
 Stores the names and ages of pets.
 
 ## How to run application standalone
-> Requires a local redis server, hence the docker command
+> Requires a local MySQL server, hence the docker command
 
-docker run --name some-redis -p 6379:6379 -d redis && mvn spring-boot:run
+docker run -e MYSQL_ROOT_PASSWORD=password -p 3306:3306 -d mysql:8.0.31 && mvn spring-boot:run
 
